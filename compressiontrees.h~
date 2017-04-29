@@ -1,0 +1,204 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <assert.h>
+
+/*Constants required for tree administration*/
+#define ZERO 0
+#define DEBUG 1
+
+/*Structure types for BST and information storage */
+typedef struct leaf leaf_t;
+typedef struct root root_t;
+
+typedef struct{
+	char* total;
+	char* suffix;
+	int num;
+}info_t;
+
+struct leaf{
+	info_t info;
+	leaf_t* right;
+	leaf_t* left;
+	leaf_t* next;
+	void* prefix;
+};
+
+struct root{
+	info_t info;
+	int total_factors;
+	int (*comp)(void*, void*);
+	void (*add)(void*, void*);
+	leaf_t* right;
+	leaf_t* next;
+};
+
+/* prototypes of tree control functions, further explanations commented
+with function architecture*/
+void plant_tree(root_t** root, char* initial, char* int_suffix, 
+	int (*comp)(void*, void*), void (*add)(void*, void*));
+leaf_t* add_branch(char* total, char* suffix, int num_factor, int is_root, 
+	void* previous, void* prefix);
+void search_tree(root_t* root, char* initial, char last_char, void* previous,
+	int* is_EOF, int is_root);
+void mem_error(char* func_name, void* check);
+char* remove_last(char** compare);
+char find_last(char** compare);
+void if_root(int is_root, void* previous);
+void print_bug(char* current);
+
+/* Program Architectures */
+
+/* Takes arguments for additive and comparison functions, a starting
+prefix string and starting suffix and assigns them to a root struct*/
+void 
+plant_tree(root_t** root, char* initial, char* int_suffix, 
+  int (*comp)(void*, void*), void (*add)(void*, void*)){
+
+		*root = (root_t*)malloc(sizeof(root_t));
+	    mem_error("plant_tree", *root);
+		(*root)->info.total = initial;
+		(*root)->info.suffix = int_suffix;
+		(*root)->info.num = 0;
+		(*root)->total_factors = 0;
+		(*root)->comp = comp;
+		(*root)->add = add;
+		(*root)->right = NULL;
+		(*root)->next = NULL;
+		
+}
+ 
+/* Takes the current complete string as total and the ordered factor
+it applies to assigns these to a new leaf while also assigning the leaf's 
+pointer to the previous factor's next field */
+leaf_t* 
+add_branch(char* total, char* suffix, int num_factor, int is_root, 
+	void* previous, void* prefix){
+	leaf_t* leaf;
+	
+	leaf = (leaf_t*)malloc(sizeof(leaf_t));
+	mem_error(strcat(total, "add_branch"), leaf);
+	
+	if (is_root){
+		((root_t*)previous)->next = leaf;
+	}
+	else{
+		((leaf_t*)previous)->next = leaf;
+	}
+	
+	leaf->info.total = total;
+	leaf->info.suffix = suffix;
+	leaf->info.num = num_factor;
+	leaf->left = NULL;
+	leaf->right = NULL;
+	leaf->prefix = prefix;
+	leaf->next = NULL;
+	
+	
+	return(leaf);
+}
+
+/* Takes root pointer and traverses tree to find initial string, adding to 
+this string as it goes until a branch addition is necessary and therefore
+creation of new compression factor*/
+void 
+search_tree(root_t* root, char* initial, char last_char, void* previous, 
+	int* is_EOF, int is_root){
+
+	void *prefix, (*add)(void*, void*);
+	leaf_t* next;
+	int is_equal, (*comp)(void*, void*);
+	char next_char, *compare, *current_prefix;
+	
+	if (is_root){
+		previous = (root_t*)previous;
+	}
+	else{
+		previous = (leaf_t*)previous;
+	}
+	
+	comp = root->comp;
+	add = root->add;
+	compare = initial;
+	prefix = root;
+	next = root->right;
+	current_prefix = root->info.total;
+	print_bug(current_prefix);
+	next_char = getchar();
+	print_bug(&next_char);
+	
+	while(next != NULL){
+		is_equal = comp(compare, current_prefix);
+		
+		
+		if (is_equal < ZERO){
+			next = next->left;
+			current_prefix = next->info.total;
+			print_bug("LEFT ASSIGN\n");
+		}
+		if(is_equal > ZERO){
+			next = next->right;
+			current_prefix = next->info.total;
+			print_bug("RIGHT ASSIGN\n");
+		}
+		else{
+			if (next_char == EOF){
+				*is_EOF = 1;
+				next_char = last_char;
+				last_char = find_last(&compare);
+				compare = remove_last(&compare);
+			}
+			else{
+				prefix = next;
+				add(compare, &next_char);
+				last_char = next_char;
+				next_char = getchar();
+				print_bug(&next_char);
+			}
+		}
+		
+	}
+	root->total_factors++;
+	next = add_branch(compare, &last_char, root->total_factors, 
+		is_root, previous, prefix);
+	previous = next;
+	
+}
+
+/*Print memory allocation error message */
+void
+mem_error(char* func_name, void* check){
+	if(check == NULL){
+		fprintf(stderr, "Memory allocation failed in %s/n", func_name);
+		exit(EXIT_FAILURE);
+	}
+}	
+
+/* remove the last character from a string */
+char*
+remove_last(char** compare){
+	int i, len = strlen(*compare);
+	char* NEW;
+	NEW = (char*)malloc(sizeof(*compare));
+	
+	for (i = 0; i <len - 1; i++){
+		NEW[i] = *compare[i];
+	}
+	return(NEW);
+}
+
+/* find the last character of a string*/
+char
+find_last(char** compare){
+	return(*compare[strlen(*compare) - 1]);
+}
+
+/*print debugging out put */
+void
+print_bug(char* current){
+	if(DEBUG){
+		fprintf(stderr, "%s", current);
+	}
+}
